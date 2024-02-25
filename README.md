@@ -33,6 +33,6 @@ Welcome to the cloud storage project! This project is a simple example of a clou
 + Django REST framework
 
 ## Author:
-+ @k3ssL
+@k3ssL
 
 Good use!
