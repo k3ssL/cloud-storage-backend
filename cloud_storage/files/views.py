@@ -1,4 +1,5 @@
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -60,6 +61,7 @@ class FileUploadAPIView(APIView):
 
 
 class FileEditAPIView(APIView):
+
     def patch(self, request, id):
 
         permission_classes = [IsAuthenticated]
@@ -112,8 +114,6 @@ class FileEditAPIView(APIView):
                 "message": serializer.errors},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-
-class FileDeleteAPIView(APIView):
     def delete(self, request, id):
 
         permission_classes = [IsAuthenticated]
@@ -149,8 +149,6 @@ class FileDeleteAPIView(APIView):
             "message": "File already deleted"
         }, status=status.HTTP_200_OK)
 
-
-class FileDownloadAPIView(APIView):
     def get(self, request, id):
 
         permission_classes = [IsAuthenticated]
@@ -189,6 +187,13 @@ class FileDownloadAPIView(APIView):
 class FileAccessAPIView(APIView):
     def post(self, request, id):
 
+        # Проверяем, авторизован ли пользователь
+        if not request.user.is_authenticated:
+            return Response({
+                "success": False,
+                "message": "Login Failed"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         # Проверяем, существует ли файл
         try:
             uploaded_file = UploadedFile.objects.get(id=id)
@@ -221,6 +226,56 @@ class FileAccessAPIView(APIView):
         uploaded_file.access_users.add(user)
 
         # Возвращаем список пользователей с доступом к файлу
+        access_list = [{
+            "fullname": user.get_full_name() if hasattr(user, 'get_full_name') else f"{user.first_name} {user.last_name}",
+            "email": user.email,
+            "type": "co-author" if user != request.user else "author"
+        } for user in uploaded_file.access_users.all()]
+
+        return Response(access_list, status=status.HTTP_200_OK)
+
+    def delete(self, request, id):
+
+        # Проверяем, авторизован ли пользователь
+        if not request.user.is_authenticated:
+            return Response({
+                "success": False,
+                "message": "Login Failed"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Проверяем, существует ли файл
+        uploaded_file = get_object_or_404(UploadedFile, id=id)
+
+        # Проверяем, является ли пользователь владельцем файла
+        if uploaded_file.user != request.user:
+            return Response({
+                "success": False,
+                "message": "Forbidden for you"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Получаем email из данных запроса
+        email = request.data.get('email', '')
+
+        # Проверяем, существует ли пользователь с указанным email
+        try:
+            user_to_remove = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "File not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # # Проверяем, есть ли пользователь в списке доступа к файлу
+        # if user_to_remove not in uploaded_file.access_users.all():
+        #     return Response({
+        #         "success": False,
+        #         "message": "Forbidden for you"
+        #     }, status=status.HTTP_403_FORBIDDEN)
+
+        # Удаляем пользователя из списка доступа к файлу
+        uploaded_file.access_users.remove(user_to_remove)
+
+        # Возвращаем обновленный список пользователей с доступом к файлу
         access_list = [{
             "fullname": user.get_full_name() if hasattr(user, 'get_full_name') else f"{user.first_name} {user.last_name}",
             "email": user.email,

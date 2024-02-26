@@ -43,6 +43,7 @@ class UserRegistrationAPIView(CreateAPIView):
                 "message": error_messages
             }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
+
 class UserLoginAPIView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = UserLoginSerializer(data=request.data)
@@ -81,7 +82,8 @@ class UserLoginAPIView(APIView):
             "message": error_messages or "Login failed"
         }, status=status.HTTP_401_UNAUTHORIZED)
 
-class UserLogoutAPIView(ObtainAuthToken):
+
+class UserLogoutAPIView(APIView):
     def get(self, request, *args, **kwargs):
         token = request.auth
 
