@@ -1,11 +1,11 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import UploadedFile
-from .serializers import UploadFileSerializer
+from .models import UploadedFile, FileAccess
+from .serializers import FileSerializer, FileAccessSerializer
 from users.models import User
 
 
@@ -26,7 +26,7 @@ class FileUploadAPIView(APIView):
 
         # Перебираем массив файлов
         for uploaded_file in files:
-            serializer = UploadFileSerializer(
+            serializer = FileSerializer(
                 data={'file': uploaded_file, 'user': request.user.pk},
                 context={'request': request}
             )
@@ -85,7 +85,7 @@ class FileEditAPIView(APIView):
                 "message": "Forbidden for you"
             }, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = UploadFileSerializer(uploaded_file, data=request.data, partial=True)
+        serializer = FileSerializer(uploaded_file, data=request.data, partial=True)
 
         # Проверяем, не пустой ли запрос был отправлен
         if 'name' not in request.data or not request.data['name']:
@@ -149,6 +149,7 @@ class FileDeleteAPIView(APIView):
             "message": "File already deleted"
         }, status=status.HTTP_200_OK)
 
+
 class FileDownloadAPIView(APIView):
     def get(self, request, id):
 
@@ -168,7 +169,7 @@ class FileDownloadAPIView(APIView):
             return Response({
                 "success": False,
                 "message": "Login Failed"
-            },status=status.HTTP_403_FORBIDDEN)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         # Проверяем, имеет ли пользователь доступ к файлу
         if uploaded_file.user != request.user:
@@ -184,10 +185,9 @@ class FileDownloadAPIView(APIView):
             response['Content-Disposition'] = f'attachment; filename="{uploaded_file.name}"'
             return response
 
+
 class FileAccessAPIView(APIView):
     def post(self, request, id):
-
-        permission_classes = [IsAuthenticated]
 
         # Проверяем, существует ли файл
         try:
@@ -197,20 +197,6 @@ class FileAccessAPIView(APIView):
                 "success": False,
                 "message": "File not found"
             }, status=status.HTTP_404_NOT_FOUND)
-
-        # # Проверяем, авторизован ли пользователь
-        # if permission_classes:
-        #     return Response({
-        #         "success": False,
-        #         "message": "Login Failed"
-        #     }, status=status.HTTP_403_FORBIDDEN)
-
-        # Проверяем не пустой ли запрос
-        if not request.body:
-            return Response({
-                "success": False,
-                "message": "Empty request"
-            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Проверяем, имеет ли пользователь доступ к файлу
         if uploaded_file.user != request.user:
@@ -236,7 +222,7 @@ class FileAccessAPIView(APIView):
 
         # Возвращаем список пользователей с доступом к файлу
         access_list = [{
-            "fullname": user.get_full_name(),
+            "fullname": user.get_full_name() if hasattr(user, 'get_full_name') else f"{user.first_name} {user.last_name}",
             "email": user.email,
             "type": "co-author" if user != request.user else "author"
         } for user in uploaded_file.access_users.all()]
