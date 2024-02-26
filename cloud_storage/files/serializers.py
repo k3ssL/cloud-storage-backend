@@ -1,9 +1,9 @@
 from rest_framework import serializers
 
-from .models import UploadedFile
+from .models import UploadedFile, FileAccess
 
 
-class UploadFileSerializer(serializers.ModelSerializer):
+class FileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadedFile
         fields = ['user', 'file', 'file_id', 'name']
@@ -19,3 +19,9 @@ class UploadFileSerializer(serializers.ModelSerializer):
         def update(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.fields['name'].required = True  # Делаем поле 'name' обязательным при обновлении
+
+
+class FileAccessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FileAccess
+        fields = ['user', 'access_type']
