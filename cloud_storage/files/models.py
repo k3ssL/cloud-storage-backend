@@ -5,12 +5,15 @@ from os.path import basename, splitext
 from django.conf import settings
 from django.db import models
 
+from users.models import User
+
 
 class UploadedFile(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     file = models.FileField(upload_to='uploads/')
     file_id = models.CharField(max_length=10, unique=True, editable=False)
+    access_users = models.ManyToManyField(User, related_name='access_files')
 
     def save(self, *args, **kwargs):
         if not self.file_id:
@@ -44,3 +47,14 @@ class UploadedFile(models.Model):
 
     def generate_file_id(self):
         return ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+
+
+class FileAccess(models.Model):
+    FILE_ACCESS_TYPES = (
+        ('author', 'Author'),
+        ('co-author', 'Co-Author'),
+    )
+
+    file = models.ForeignKey(UploadedFile, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    access_type = models.CharField(max_length=20, choices=FILE_ACCESS_TYPES)
