@@ -1,19 +1,15 @@
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import UploadedFile, FileAccess
-from .serializers import FileSerializer, FileAccessSerializer
+from .models import UploadedFile
+from .serializers import FileSerializer
 from users.models import User
-
 
 class FileUploadAPIView(APIView):
     def post(self, request, *args, **kwargs):
-
-        permission_classes = [IsAuthenticated]
 
         files = request.FILES.getlist('files')
         results = []
@@ -32,11 +28,11 @@ class FileUploadAPIView(APIView):
                 context={'request': request}
             )
             # Проверяем, авторизован ли пользователь
-            if permission_classes:
+            if not request.user.is_authenticated:
                 return Response({
                     "success": False,
                     "message": "Login Failed"
-                }, status=status.HTTP_403_FORBIDDEN)
+                }, status=status.HTTP_401_UNAUTHORIZED)
 
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
@@ -64,8 +60,6 @@ class FileEditAPIView(APIView):
 
     def patch(self, request, id):
 
-        permission_classes = [IsAuthenticated]
-
         # Проверяем существует ли файл
         try:
             uploaded_file = UploadedFile.objects.filter(id=id).first()
@@ -75,11 +69,11 @@ class FileEditAPIView(APIView):
                 "message": "File not found"
             }, status=status.HTTP_404_NOT_FOUND)
         # Проверяем, авторизован ли пользователь
-        if permission_classes:
+        if not request.user.is_authenticated:
             return Response({
                 "success": False,
                 "message": "Login Failed"
-            }, status=status.HTTP_403_FORBIDDEN)
+            }, status=status.HTTP_401_UNAUTHORIZED)
         # Проверяем, имеет ли пользователь доступ к файлу
         if uploaded_file.user != request.user:
             return Response({
@@ -101,8 +95,7 @@ class FileEditAPIView(APIView):
             new_name = data.get('name', '')
 
             # Редактируем имя файла
-            uploaded_file.name = new_name
-            uploaded_file.save()
+            UploadedFile.objects.filter(id=uploaded_file.id).update(name=new_name)
 
             return Response({
                 "success": True,
@@ -116,8 +109,6 @@ class FileEditAPIView(APIView):
 
     def delete(self, request, id):
 
-        permission_classes = [IsAuthenticated]
-
         # Проверяем существует ли файл
         try:
             uploaded_file = UploadedFile.objects.get(id=id)
@@ -128,11 +119,11 @@ class FileEditAPIView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Проверяем, авторизован ли пользователь
-        if permission_classes:
+        if not request.user.is_authenticated:
             return Response({
                 "success": False,
                 "message": "Login Failed"},
-                status=status.HTTP_403_FORBIDDEN)
+                status=status.HTTP_401_UNAUTHORIZED)
 
         # Проверяем, имеет ли пользователь доступ к файлу
         if uploaded_file.user != request.user:
@@ -151,8 +142,6 @@ class FileEditAPIView(APIView):
 
     def get(self, request, id):
 
-        permission_classes = [IsAuthenticated]
-
         # Проверяем, существует ли файл
         try:
             uploaded_file = UploadedFile.objects.get(id=id)
@@ -163,11 +152,11 @@ class FileEditAPIView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Проверяем, авторизован ли пользователь
-        if permission_classes:
+        if not request.user.is_authenticated:
             return Response({
                 "success": False,
                 "message": "Login Failed"
-            }, status=status.HTTP_403_FORBIDDEN)
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
         # Проверяем, имеет ли пользователь доступ к файлу
         if uploaded_file.user != request.user:
@@ -265,12 +254,12 @@ class FileAccessAPIView(APIView):
                 "message": "File not found"
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # # Проверяем, есть ли пользователь в списке доступа к файлу
-        # if user_to_remove not in uploaded_file.access_users.all():
-        #     return Response({
-        #         "success": False,
-        #         "message": "Forbidden for you"
-        #     }, status=status.HTTP_403_FORBIDDEN)
+        # Проверяем, есть ли пользователь в списке доступа к файлу
+        if user_to_remove not in uploaded_file.access_users.all():
+            return Response({
+                "success": False,
+                "message": "Forbidden for you"
+            }, status=status.HTTP_403_FORBIDDEN)
 
         # Удаляем пользователя из списка доступа к файлу
         uploaded_file.access_users.remove(user_to_remove)
@@ -283,3 +272,30 @@ class FileAccessAPIView(APIView):
         } for user in uploaded_file.access_users.all()]
 
         return Response(access_list, status=status.HTTP_200_OK)
+
+
+class UserFilesView(APIView):
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({
+                "success": False,
+                "message": "Login Failed"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_files = UploadedFile.objects.filter(user=request.user)
+        serializer = FileSerializer(user_files, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SharedFilesView(APIView):
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({
+                "success": False,
+                "message": "Login Failed"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        shared_files = UploadedFile.objects.exclude(user=request.user)
+        serializer = FileSerializer(shared_files, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
