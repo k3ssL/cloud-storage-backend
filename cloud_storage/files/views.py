@@ -4,8 +4,8 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import UploadedFile
-from .serializers import FileSerializer
+from .models import UploadedFile, FileAccess
+from .serializers import FileSerializer, FileAccessSerializer
 from users.models import User
 
 class FileUploadAPIView(APIView):
@@ -295,7 +295,6 @@ class SharedFilesView(APIView):
                 "message": "Login Failed"
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        shared_files = UploadedFile.objects.exclude(user=request.user)
-        serializer = FileSerializer(shared_files, many=True)
-
+        shared_files = FileAccess.objects.filter(user=request.user)
+        serializer = FileAccessSerializer(shared_files, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
