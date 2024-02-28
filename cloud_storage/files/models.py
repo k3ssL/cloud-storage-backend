@@ -19,14 +19,14 @@ class UploadedFile(models.Model):
         if not self.file_id:
             self.file_id = self.generate_file_id()
 
-        # Получите имя файла без пути
+        # Получение имя файла без пути
         original_name = basename(self.file.name)
         self.file = f'uploads/{original_name}'
 
-        # Измените имя файла, удалив случайные символы в конце
+        # Изменение имени файла, удалив случайные символы в конце
         new_name = self.generate_unique_filename(original_name)
 
-        # Установите значение для self.name
+        # Установление значения для self.name
         self.name = new_name
 
         super().save(*args, **kwargs)
